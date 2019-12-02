@@ -171,7 +171,7 @@ class CSR_Matrix:
     # http://www.mathcs.emory.edu/~cheung/Courses/561/Syllabus/3-C/sparse.html <- Main idea taken from here
     #Still need to size check vector
     def multiply_vec(self, input):        
-        result = zeroMaker(len(input))
+        result = np.zeros(len(input))
         
         if isinstance(input, list):
             
@@ -243,19 +243,7 @@ class CSR_Matrix:
         new_size['row'] = self.size['col']
 
         return CSR_Matrix(self.name + ' tranposed', new_row, new_col, new_data, new_size)
-'''
-        print(pre_col)
-        print(pre_data)
-        print('new_col', new_col)
-        print('new_data ', new_data)
-        print('new_row', new_row)
-        
-        transposed = csr_matrix((new_data, new_col, new_row), shape=(self.size['col'], self.size['row'])).toarray()
-        transposed_csr = csr_matrix((self.data, self.col, self.row), shape=(self.size['col'], self.size['row'])).transpose().toarray()
 
-        print(transposed)
-        print(transposed_csr)
-'''
 def zeroMaker(n):
             listOfZeros = [0] * n
             return listOfZeros
@@ -265,6 +253,32 @@ def randomMaker(n):
     for i in range(0, len(vec)):
         vec[i] = random.randrange(0, 4)
     return vec
+
+#Basis from http://mlwiki.org/index.php/Gram-Schmidt_Process#Python
+def modified_qr_factorization(A, B):
+    m, n = A.shape
+    Q = np.zeros((m, n))
+    R = np.zeros((n, n))
+    print(B.ndim)
+
+    if B.ndim == 1:
+        Q[:,0] = B
+    else:
+        for i in range(B.shape[1]):
+            Q[:,i] = B[:,i]
+
+    for j in range(n):
+        v = A[:, j]
+
+        for i in range(j - 1):
+            q = Q[:, i]
+            R[i, j] = q.dot(v)
+            v = v - R[i, j] * q
+
+        norm = np.linalg.norm(v)
+        Q[:, j] = v / norm
+        R[j, j] = norm
+    return Q, R
 
 def main():
     file_name = sys.argv[1]
@@ -281,8 +295,8 @@ def main():
     x = []
     r = zeroMaker(len(b))
     pVectors = np.zeros((A.size['row'], maxSearch))
-    Q = [[0 for i in range(A.size['row'])] for j in range(maxSearch)]  
-    R = [[0 for i in range(maxSearch)] for j in range(maxSearch)]  
+    Q = np.zeros((A.size['row'], A.size['row']))
+    R = np.zeros((A.size['row'], A.size['row']))
     alpha = [0 for i in range(maxSearch)]
 
     #initalize x
@@ -294,35 +308,71 @@ def main():
         r[i] = b[i] - A.multiply_vec(x)[i]
     print("r: \n", r)
 
-    #compute ||r||
-    sum = 0
-    for i in range(0, len(r)):
-        sum += pow(r[i], 2)
-    rNorm = math.sqrt(sum)
-    print("||r||: \n", rNorm)
+    #compute res_norm
+    res_norm = np.linalg.norm(r)
 
-    #Begin GMRES
-    for i in range(0, A.size['row']):
-        pVectors[i,0] += (1/rNorm) * r[i]
+    #1/||r|| * r
+    pVectors[:,0] = np.multiply((1/res_norm), r)
     
-    print(pVectors)
-
     P = pVectors[:,0]
     B = (A.multiply_vec(list(P)))
-    print(P, B)
     
     # get B = QR
-    Q, R = np.linalg.qr(csr_matrix((A.data, A.col, A.row), shape=(A.size['row'], A.size['col'])).toarray())
+    #Q, R = np.linalg.qr(B)
+    #Q2, R2 =modified_qr_factorization(csr_matrix((A.data, A.col, A.row), shape=(A.size['row'], A.size['col'])).toarray(), B)
+    for i in range(maxIter):
+        #restart
+        #||r||
+        r_norm = np.linalg.norm(r)
+
+        #1/||r|| * r
+        pVectors[:,0] = np.multiply((1/r_norm), r)
+        
+        P = pVectors[:,0]
+        B = (A.multiply_vec(list(P)))
+        #loop
+        for j in range(maxSearch):
+            if B.ndim == 1:
+                mu = np.linalg.norm(r)
+                if mu < tolerance*res_norm:
+                    exit()
+                print(mu)
+            else:
+                #Lease Squares
+                Q, R = np.linalg.qr(B)
+                Q_t = np.transpose(Q)
+                beta = np.dot(Q_t, r)
+                alpha = np.linalg.solve(R, beta)
+
+                #compute next iterate 
+                x = np.add(x, P@alpha)
+
+                #compute next residual 
+                r = np.subtract(r, B@alpha)
+
+                #computer residual norm
+                r_norm = np.linalg.norm(r)
+
+                #check for convergence 
+                if r_norm < res_norm*tolerance:
+                    print('converged!')
+                    exit()
+                
+                c = []
+                for k in range(P.shape[1] if P.ndim > 1 else 1):
+                    c = np.linalg.dot(np.transpose(P[:,0]), r)
+
+                
+
+
+
+    '''
     Q_t = np.transpose(Q)
     beta = np.dot(Q_t, r)
     alpha = np.linalg.solve(R, beta)
-    solved = np.linalg.solve(np.matmul(Q,R), B)
-    print('Q\n', Q)
-    print('Q_t\n', Q_t)
-    print('R\n', R)
-    print('beta\n', beta)
-    print('appha\n', alpha)
-    print('solved\n', solved)
+
+    '''
+    
     
 if __name__ == "__main__":
     main()
