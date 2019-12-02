@@ -6,11 +6,14 @@ import time
 import math
 from scipy.sparse import csr_matrix
 from itertools import chain 
+from pathlib import Path
+import sys
 
 # create toCSR
 def readCSR(file):
     #Read in matrix from file adjecncy matrix or stuff provided from https://sparse.tamu.edu/
-    with open ('/Users/brianallen/Desktop/Projects/GMRES/brian.mtx') as fp:
+    path = Path(__file__).parent / str(file)
+    with path.open() as fp:
         line = fp.readline()
         first_entry = False
         matrix_dict = {'size': {}}
@@ -253,7 +256,6 @@ class CSR_Matrix:
         print(transposed)
         print(transposed_csr)
 '''
-
 def zeroMaker(n):
             listOfZeros = [0] * n
             return listOfZeros
@@ -265,9 +267,11 @@ def randomMaker(n):
     return vec
 
 def main():
-    matrix, matrix_dict = readCSR('cage3')
+    file_name = sys.argv[1]
+    print(file_name)
+    matrix, matrix_dict = readCSR(file_name)
     A = generateCSR(matrix, matrix_dict)
-    testCSR('brian', A)
+    testCSR(file_name, A)
 
     b = zeroMaker(A.size['row'])
     b[0] = 1
