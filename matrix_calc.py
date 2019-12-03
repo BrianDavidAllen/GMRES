@@ -32,7 +32,7 @@ def readCSR(file):
                     matrix_dict['size']['row'] = int(nums[0])
                     matrix_dict['size']['col'] = int(nums[1])
                     matrix_dict['size']['non_zero'] = int(nums[2])
-                    matrix = [[0 for i in range(int(nums[0]))] for j in range(int(nums[1]))]   
+                    matrix = [[0 for i in range(int(nums[1]))] for j in range(int(nums[0]))]   
                     line = fp.readline()
                 else:
                     nums = line.split()
@@ -145,9 +145,6 @@ def testCSR(file, csrMatrix):
                 exit()
     print("OK")
 
-    if csrMatrix.size['row'] != csrMatrix.size['col']:
-        print('Matrix is not nxn and will not work for current GMRES implementation')
-        exit()
 
     #matrix.multiply_vec(matrix)
 
@@ -193,14 +190,6 @@ class CSR_Matrix:
 
             #not implemented
                 return
-            '''
-            for j in range(0, )
-                for i in range(0, len(input)):
-                    for k in range(self.row[i], self.row[i+1]):
-                        result[i] = result[i] + self.data[k] * input[ self.col[k]]
-                print(result)
-            '''
-
         return result
         
     # transpose
@@ -291,7 +280,7 @@ def main():
     b[0] = 1
     tolerance = pow(10, -6)
     maxIter = 5
-    maxSearch = 5
+    maxSearch = 15
     x = []
     r = zeroMaker(len(b))
     pVectors = np.zeros((A.size['row'], maxSearch))
@@ -300,7 +289,7 @@ def main():
     alpha = [0 for i in range(maxSearch)]
 
     #initalize x
-    x = randomMaker(A.size['col'])
+    x = zeroMaker(A.size['col'])
     
     print('x\n', x)
     #Compute r
@@ -314,29 +303,37 @@ def main():
     #1/||r|| * r
     pVectors[:,0] = np.multiply((1/res_norm), r)
     
-    P = pVectors[:,0]
-    B = (A.multiply_vec(list(P)))
-    
-    # get B = QR
-    #Q, R = np.linalg.qr(B)
-    #Q2, R2 =modified_qr_factorization(csr_matrix((A.data, A.col, A.row), shape=(A.size['row'], A.size['col'])).toarray(), B)
+    A_array = csr_matrix((A.data, A.col, A.row), shape=(A.size['row'], A.size['col'])).toarray()
     for i in range(maxIter):
+        print('Restart ------------------------------')
         #restart
         #||r||
         r_norm = np.linalg.norm(r)
 
         #1/||r|| * r
-        pVectors[:,0] = np.multiply((1/r_norm), r)
-        
-        P = pVectors[:,0]
+        P = np.multiply((1/res_norm), r)
+
+        #B = A(p1)
         B = (A.multiply_vec(list(P)))
+
+        print("B\n", B)
         #loop
-        for j in range(maxSearch):
+        print('P\n', P)
+        for j in range(maxSearch-1):
             if B.ndim == 1:
+                
+                p_new = np.array(A.size['row']) 
+                c = np.dot(np.transpose(P), r)
+                p_new = np.subtract(r, np.multiply(c, P))
+                p_new_norm = np.linalg.norm(p_new)
+
+                P = np.transpose(np.vstack((P, np.multiply(1/p_new_norm, p_new))))
+                B = np.transpose(np.vstack((B, A.multiply_vec(list(P[:,1])))))
+
                 mu = np.linalg.norm(r)
                 if mu < tolerance*res_norm:
                     exit()
-                print(mu)
+
             else:
                 #Lease Squares
                 Q, R = np.linalg.qr(B)
@@ -358,20 +355,14 @@ def main():
                     print('converged!')
                     exit()
                 
-                c = []
+                p_new = np.array(A.size['row'])                
+                #compute next search direction
                 for k in range(P.shape[1] if P.ndim > 1 else 1):
-                    c = np.linalg.dot(np.transpose(P[:,0]), r)
-
-                
-
-
-
-    '''
-    Q_t = np.transpose(Q)
-    beta = np.dot(Q_t, r)
-    alpha = np.linalg.solve(R, beta)
-
-    '''
+                    c = np.dot(np.transpose(P[:,k]), r)
+                    p_new = np.subtract(r, np.multiply(c, P[:,k]))
+                p_new_norm = np.linalg.norm(p_new)
+                P = np.transpose(np.vstack((np.transpose(P),np.multiply(1/p_new_norm, p_new))))
+                B = np.transpose(np.vstack((np.transpose(B),A.multiply_vec(list(P[:,k])))))
     
     
 if __name__ == "__main__":
